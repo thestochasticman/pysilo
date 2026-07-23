@@ -31,10 +31,11 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering :: Atmospheric Science",
 ]
+# pandas is provided by conda via environment.yml; only the lab core is
+# declared here so `pip install -e .` is fast.
 dependencies = [
   "attrs",
   "borevitz-lab",
-  "pandas",
   "typing_extensions",
 ]
 
