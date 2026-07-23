@@ -17,5 +17,5 @@ dependencies:
   - attrs
   - tabulate
   - typing_extensions
-  # silo
+  # pysilo
   - pandas

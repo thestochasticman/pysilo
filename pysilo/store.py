@@ -1,7 +1,7 @@
 """One machine-wide SILO climate store that fills itself on demand.
 
 Every daily observation this machine ever fetches lands in a single
-SQLite database, keyed by SILO grid point (:mod:`silo.grid`) and date:
+SQLite database, keyed by SILO grid point (:mod:`pysilo.grid`) and date:
 
     {config.tmp_dir}/silo_store/
     └── silo.db
@@ -26,9 +26,9 @@ from urllib.request import urlopen
 import pandas as pd
 
 from borevitz_lab.config import Config, config as default_config
-from silo import grid
-from silo.paths import Paths
-from silo.datadrill import SILO, defaultsilo
+from pysilo import grid
+from pysilo.paths import Paths
+from pysilo.silo import SILO, defaultsilo
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS observations (
@@ -79,12 +79,12 @@ class Store:
 
     Composed from :class:`borevitz_lab.config.Config` (where the store
     lives, and the SILO registration email) and
-    :class:`silo.datadrill.SILO` (endpoint + variables). No inheritance.
+    :class:`pysilo.silo.SILO` (endpoint + variables). No inheritance.
 
     Example:
         ```python
         from datetime import date
-        from silo.store import Store
+        from pysilo.store import Store
 
         store = Store()
         df = store.get_df(-33.516, 148.373, date(2023, 1, 1), date(2023, 12, 31))

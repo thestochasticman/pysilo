@@ -1,12 +1,12 @@
 """Fetch the SILO daily climate table for a query — via the machine-wide store.
 
 Thin compatibility wrapper: the heavy lifting (grid snapping, span
-diffing, coverage ledger) lives in :class:`silo.store.Store`. Kept as
+diffing, coverage ledger) lives in :class:`pysilo.store.Store`. Kept as
 a module so the familiar ``download_silo(query)`` entry point survives.
 """
 import pandas as pd
 from borevitz_lab.query import Query
-from silo.datadrill import SILO, defaultsilo
+from pysilo.silo import SILO, defaultsilo
 
 
 def download_silo(query: Query, email: str = None, silo: SILO = defaultsilo) -> pd.DataFrame:
@@ -25,7 +25,7 @@ def download_silo(query: Query, email: str = None, silo: SILO = defaultsilo) -> 
         pandas.DataFrame: One row per day with a ``YYYY-MM-DD`` column and
         one column per climate variable.
     """
-    from silo.store import Store
+    from pysilo.store import Store
     store = Store(config=query.config, silo=silo)
     df = store.get_df_query(query, email=email)
     return df.rename(columns={'date': 'YYYY-MM-DD'})
@@ -37,7 +37,7 @@ def test_live_fetch_and_dedup():
     import tempfile
     from datetime import date
     from borevitz_lab.config import Config
-    from silo.store import Store
+    from pysilo.store import Store
 
     tmpdir = tempfile.mkdtemp(prefix='silo_live_test_')
     cfg = Config(out_dir=tmpdir, tmp_dir=tmpdir, email='yasaradeel@gmail.com')

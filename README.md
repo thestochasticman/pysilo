@@ -33,7 +33,7 @@ The core API is **query-agnostic** — a coordinate and dates:
 
 ```python
 from datetime import date
-from silo.store import Store
+from pysilo.store import Store
 
 store = Store()   # email from ~/.config/BorevitzLab.json, or pass email=...
 
@@ -91,20 +91,20 @@ Package design (shared across the lab's packages — no inheritance,
 composition only):
 
 - **`Query`** (from `borevitz-lab`) — identity: what region, what dates.
-- **`SILO`** (`silo.datadrill`) — config: endpoint, comment codes, variables.
-- **`Paths`** (`silo.paths`) — derived location of the store for a
+- **`SILO`** (`pysilo.silo`) — config: endpoint, comment codes, variables.
+- **`Paths`** (`pysilo.paths`) — derived location of the store for a
   given `Config`.
 - **`grid`** — the fixed 0.05° grid (pure, offline-testable math).
-- **`Store`** (`silo.store`) — ties them together.
+- **`Store`** (`pysilo.store`) — ties them together.
 
 ## Test
 
 ```bash
 # offline (pure math + synthetic store):
-python silo/grid.py     # True
-python silo/paths.py    # True
-python silo/store.py    # True
+python pysilo/grid.py     # True
+python pysilo/paths.py    # True
+python pysilo/store.py    # True
 
 # live (small real fetches from SILO, incl. dedup assertions):
-python silo/download_silo.py  # True
+python pysilo/download_silo.py  # True
 ```

@@ -21,7 +21,7 @@ class Paths:
 
     Example:
         ```python
-        from silo.paths import Paths
+        from pysilo.paths import Paths
 
         Paths().db  # '~/Downloads/BorevitzLab-Tmp/silo_store/silo.db'
         ```
