@@ -1,0 +1,37 @@
+{% set version = "0.1.0" %}
+
+package:
+  name: pysilo
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  noarch: python
+  number: 0
+  script: {{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
+
+requirements:
+  host:
+    - python >=3.11
+    - pip
+    - setuptools >=61
+    - wheel
+  run:
+    - python >=3.11
+    - borevitz-lab
+    - attrs
+    - typing_extensions
+    - pandas
+
+test:
+  imports:
+    - pysilo
+    - pysilo.grid
+
+about:
+  home: https://github.com/thestochasticman/pysilo
+  license: MIT
+  license_file: LICENSE
+  summary: Cached SILO daily climate for Australia (fetch once per grid point)
