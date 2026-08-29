@@ -221,7 +221,7 @@ class Store:
         pid = grid.point_id(lat, lon)
         db = s._db()
         try:
-            long = pd.read_sql_troi(
+            long = pd.read_sql_query(
                 'SELECT date, variable, value FROM observations '
                 'WHERE point = ? AND date >= ? AND date <= ? ORDER BY date',
                 db, params=(pid, str(start), str(end)),
