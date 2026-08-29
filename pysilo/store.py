@@ -25,7 +25,7 @@ from urllib.request import urlopen
 
 import pandas as pd
 
-from borevitz_lab.config import Config, config as default_config
+from troi.config import Config, config as default_config
 from pysilo import grid
 from pysilo.paths import Paths
 from pysilo.silo import SILO, defaultsilo
@@ -77,7 +77,7 @@ def missing_spans(covered: list[tuple[date, date]], start: date, end: date) -> l
 class Store:
     """The machine-wide SILO store: one grid, one ledger, zero re-fetches.
 
-    Composed from :class:`borevitz_lab.config.Config` (where the store
+    Composed from :class:`troi.config.Config` (where the store
     lives, and the SILO registration email) and
     :class:`pysilo.silo.SILO` (endpoint + variables). No inheritance.
 
@@ -148,7 +148,7 @@ class Store:
         """Fetch one contiguous missing span for a grid point and record it."""
         email = email or s.config.email
         if not email:
-            raise ValueError('Set email in ~/.config/BorevitzLab.json or pass email parameter')
+            raise ValueError('Set email in ~/.config/Troi.json or pass email parameter')
         slat, slon = (float(v) for v in pid.split(','))
         url = (
             f'{s.silo.base_url}?lat={slat}&lon={slon}'
@@ -210,8 +210,8 @@ class Store:
         """Return the daily climate table for ``(lat, lon)`` x ``[start, end]``,
         fetching only what's missing first.
 
-        Query-agnostic — the data layer of the package. Pipelines that
-        speak :class:`borevitz_lab.query.Query` use :meth:`get_df_query`.
+        Troi-agnostic — the data layer of the package. Pipelines that
+        speak :class:`troi.troi.Troi` use :meth:`get_df_troi`.
 
         Returns:
             pandas.DataFrame: One row per day, a ``date`` column
@@ -221,7 +221,7 @@ class Store:
         pid = grid.point_id(lat, lon)
         db = s._db()
         try:
-            long = pd.read_sql_query(
+            long = pd.read_sql_troi(
                 'SELECT date, variable, value FROM observations '
                 'WHERE point = ? AND date >= ? AND date <= ? ORDER BY date',
                 db, params=(pid, str(start), str(end)),
@@ -233,15 +233,15 @@ class Store:
         df['date'] = pd.to_datetime(df['date'])
         return df
 
-    # -- Query adapters (the reproducibility layer speaks Query) ----------
+    # -- Troi adapters (the reproducibility layer speaks Troi) ----------
 
-    def fill_query(s, query, email: str = None) -> int:
-        """:meth:`fill` at the centre of a :class:`borevitz_lab.query.Query`."""
-        return s.fill(query.centre_lat, query.centre_lon, query.start, query.end, email=email)
+    def fill_troi(s, troi, email: str = None) -> int:
+        """:meth:`fill` at the centre of a :class:`troi.troi.Troi`."""
+        return s.fill(troi.centre_lat, troi.centre_lon, troi.start, troi.end, email=email)
 
-    def get_df_query(s, query, email: str = None) -> pd.DataFrame:
-        """:meth:`get_df` at the centre of a :class:`borevitz_lab.query.Query`."""
-        return s.get_df(query.centre_lat, query.centre_lon, query.start, query.end, email=email)
+    def get_df_troi(s, troi, email: str = None) -> pd.DataFrame:
+        """:meth:`get_df` at the centre of a :class:`troi.troi.Troi`."""
+        return s.get_df(troi.centre_lat, troi.centre_lon, troi.start, troi.end, email=email)
 
 
 # -- offline tests (synthetic rows, no network) -----------------------------

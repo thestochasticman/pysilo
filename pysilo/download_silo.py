@@ -1,23 +1,23 @@
-"""Fetch the SILO daily climate table for a query — via the machine-wide store.
+"""Fetch the SILO daily climate table for a troi — via the machine-wide store.
 
 Thin compatibility wrapper: the heavy lifting (grid snapping, span
 diffing, coverage ledger) lives in :class:`pysilo.store.Store`. Kept as
-a module so the familiar ``download_silo(query)`` entry point survives.
+a module so the familiar ``download_silo(troi)`` entry point survives.
 """
 import pandas as pd
-from borevitz_lab.query import Query
+from troi.troi import Troi
 from pysilo.silo import SILO, defaultsilo
 
 
-def download_silo(query: Query, email: str = None, silo: SILO = defaultsilo) -> pd.DataFrame:
-    """Return SILO daily climate for the centre of ``query.bbox``.
+def download_silo(troi: Troi, email: str = None, silo: SILO = defaultsilo) -> pd.DataFrame:
+    """Return SILO daily climate for the centre of ``troi.bbox``.
 
     Fetches only the date spans of the grid point that no previous
     request has covered — repeat, nearby, and extended queries
     re-download nothing.
 
     Args:
-        query: The :class:`borevitz_lab.query.Query` (centre + date range).
+        troi: The :class:`troi.troi.Troi` (centre + date range).
         email: SILO registration email; falls back to ``config.email``.
         silo: Endpoint/variable configuration; defaults to the bundled one.
 
@@ -26,8 +26,8 @@ def download_silo(query: Query, email: str = None, silo: SILO = defaultsilo) -> 
         one column per climate variable.
     """
     from pysilo.store import Store
-    store = Store(config=query.config, silo=silo)
-    df = store.get_df_query(query, email=email)
+    store = Store(config=troi.config, silo=silo)
+    df = store.get_df_troi(troi, email=email)
     return df.rename(columns={'date': 'YYYY-MM-DD'})
 
 
@@ -36,7 +36,7 @@ def test_live_fetch_and_dedup():
     fetch nothing."""
     import tempfile
     from datetime import date
-    from borevitz_lab.config import Config
+    from troi.config import Config
     from pysilo.store import Store
 
     tmpdir = tempfile.mkdtemp(prefix='silo_live_test_')

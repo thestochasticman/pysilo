@@ -29,13 +29,13 @@ Part of the [Borevitz Lab](https://borevitzlab.anu.edu.au/) ecosystem.
 
 ## Usage
 
-The core API is **query-agnostic** — a coordinate and dates:
+The core API is **troi-agnostic** — a coordinate and dates:
 
 ```python
 from datetime import date
 from pysilo.store import Store
 
-store = Store()   # email from ~/.config/BorevitzLab.json, or pass email=...
+store = Store()   # email from ~/.config/Troi.json, or pass email=...
 
 df = store.get_df(-33.516, 148.373, date(2023, 1, 1), date(2023, 12, 31))
 #    one row per day: date, daily_rain, max_temp, min_temp, radiation,
@@ -44,18 +44,18 @@ df = store.get_df(-33.516, 148.373, date(2023, 1, 1), date(2023, 12, 31))
 store.fill(-33.516, 148.373, date(2023, 1, 1), date(2023, 12, 31))  # → 0: already local
 ```
 
-Pipelines that speak the shared `borevitz_lab.query.Query` use the
+Pipelines that speak the shared `troi.troi.Troi` use the
 adapters (evaluated at the bbox centre):
 
 ```python
-df = store.get_df_query(query)
+df = store.get_df_troi(troi)
 ```
 
-`download_silo(query)` remains as a thin wrapper returning the classic
+`download_silo(troi)` remains as a thin wrapper returning the classic
 `YYYY-MM-DD`-columned frame.
 
 SILO requires a registration email (sent as the API username) — set
-`email` in `~/.config/BorevitzLab.json`, `BOREVITZ_LAB_EMAIL`, or pass
+`email` in `~/.config/Troi.json`, `TROI_EMAIL`, or pass
 `email=` per call.
 
 ## Performance
@@ -84,21 +84,21 @@ conda install -c conda-forge -c thestochasticman pysilo
 
 ### From source
 
-All lab repos share one conda environment, **`borevitz_lab`** — each
+All lab repos share one conda environment, **`troi`** — each
 repo's `environment.yml` creates it if missing and adds its own
 packages if it exists (never use `--prune`):
 
 ```bash
-conda env update -n borevitz_lab -f environment.yml
-conda activate borevitz_lab
-pip install -e ../borevitz_lab   # shared core (not yet on PyPI)
+conda env update -n troi -f environment.yml
+conda activate troi
+pip install -e ../troi   # shared core (not yet on PyPI)
 pip install -e .
 ```
 
 Package design (shared across the lab's packages — no inheritance,
 composition only):
 
-- **`Query`** (from `borevitz-lab`) — identity: what region, what dates.
+- **`Troi`** (from `troi`) — identity: what region, what dates.
 - **`SILO`** (`pysilo.silo`) — config: endpoint, comment codes, variables.
 - **`Paths`** (`pysilo.paths`) — derived location of the store for a
   given `Config`.
