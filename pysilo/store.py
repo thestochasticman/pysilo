@@ -25,7 +25,7 @@ from urllib.request import urlopen
 
 import pandas as pd
 
-from troi.config import Config, config as default_config
+from troi import Config, config as default_config
 from pysilo import grid
 from pysilo.paths import Paths
 from pysilo.silo import SILO, defaultsilo
@@ -77,7 +77,7 @@ def missing_spans(covered: list[tuple[date, date]], start: date, end: date) -> l
 class Store:
     """The machine-wide SILO store: one grid, one ledger, zero re-fetches.
 
-    Composed from :class:`troi.config.Config` (where the store
+    Composed from :class:`troi.Config` (where the store
     lives, and the SILO registration email) and
     :class:`pysilo.silo.SILO` (endpoint + variables). No inheritance.
 
@@ -211,7 +211,7 @@ class Store:
         fetching only what's missing first.
 
         Troi-agnostic — the data layer of the package. Pipelines that
-        speak :class:`troi.troi.Troi` use :meth:`get_df_troi`.
+        speak :class:`troi.Troi` use :meth:`get_df_troi`.
 
         Returns:
             pandas.DataFrame: One row per day, a ``date`` column
@@ -236,11 +236,11 @@ class Store:
     # -- Troi adapters (the reproducibility layer speaks Troi) ----------
 
     def fill_troi(s, troi, email: str = None) -> int:
-        """:meth:`fill` at the centre of a :class:`troi.troi.Troi`."""
+        """:meth:`fill` at the centre of a :class:`troi.Troi`."""
         return s.fill(troi.centre_lat, troi.centre_lon, troi.start, troi.end, email=email)
 
     def get_df_troi(s, troi, email: str = None) -> pd.DataFrame:
-        """:meth:`get_df` at the centre of a :class:`troi.troi.Troi`."""
+        """:meth:`get_df` at the centre of a :class:`troi.Troi`."""
         return s.get_df(troi.centre_lat, troi.centre_lon, troi.start, troi.end, email=email)
 
 

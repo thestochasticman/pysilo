@@ -5,7 +5,7 @@ diffing, coverage ledger) lives in :class:`pysilo.store.Store`. Kept as
 a module so the familiar ``download_silo(troi)`` entry point survives.
 """
 import pandas as pd
-from troi.troi import Troi
+from troi import Troi
 from pysilo.silo import SILO, defaultsilo
 
 
@@ -17,7 +17,7 @@ def download_silo(troi: Troi, email: str = None, silo: SILO = defaultsilo) -> pd
     re-download nothing.
 
     Args:
-        troi: The :class:`troi.troi.Troi` (centre + date range).
+        troi: The :class:`troi.Troi` (centre + date range).
         email: SILO registration email; falls back to ``config.email``.
         silo: Endpoint/variable configuration; defaults to the bundled one.
 
@@ -36,7 +36,7 @@ def test_live_fetch_and_dedup():
     fetch nothing."""
     import tempfile
     from datetime import date
-    from troi.config import Config
+    from troi import Config
     from pysilo.store import Store
 
     tmpdir = tempfile.mkdtemp(prefix='silo_live_test_')

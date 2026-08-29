@@ -1,12 +1,12 @@
 """Derived on-disk location of the machine-wide SILO store.
 
-The store is keyed by :class:`troi.config.Config` (one store per
+The store is keyed by :class:`troi.Config` (one store per
 data root, shared by every request on this machine). Rule of thumb
 across the lab's packages: user-settable inputs → Config, derived
 locations → Paths. No inheritance — composition only.
 """
 from attrs import frozen, field
-from troi.config import Config, config as default_config
+from troi import Config, config as default_config
 
 
 @frozen
@@ -14,7 +14,7 @@ class Paths:
     """Where the silo store lives for a given Config.
 
     Attributes:
-        config: The :class:`troi.config.Config` supplying the data root.
+        config: The :class:`troi.Config` supplying the data root.
         root: Store directory (``{config.tmp_dir}/silo_store``).
         db: The SQLite database holding every observation and the
             coverage ledger.
