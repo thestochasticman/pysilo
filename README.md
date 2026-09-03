@@ -5,7 +5,7 @@ for Australia — fetch once per grid point, never twice.** Every daily
 observation this machine ever fetches lands in one SQLite store keyed
 by SILO's native 0.05° (~5 km) grid, so repeat requests, nearby farms
 in the same cell, and extended date ranges all reuse the same rows.
-Part of the [Borevitz Lab](https://borevitzlab.anu.edu.au/) ecosystem.
+Part of the [Borevitz Lab](https://biology.anu.edu.au/research/research-groups/borevitz-group-plant-genomics-climate-adaption) ecosystem.
 
 ## How it works
 
