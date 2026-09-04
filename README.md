@@ -79,6 +79,8 @@ point — they are ledger lookups, no network involved.
 ### pip
 
 ```bash
+pip install pysilo-store     # from PyPI (distribution name pysilo-store, import pysilo)
+# or straight from GitHub:
 pip install git+https://github.com/thestochasticman/pysilo.git
 ```
 
