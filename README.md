@@ -12,8 +12,8 @@ Part of the [Borevitz Lab](https://biology.anu.edu.au/research/research-groups/b
 ```
 {data_root}/silo_store/
 └── silo.db
-    ├── observations(point, date, variable, value)   # every value ever fetched
-    └── coverage(point, start, end)                  # which date spans are populated
+    ├── observations(point, date, variable, value, source)   # every value ever fetched
+    └── coverage(point, start, end)                          # which date spans are populated
 ```
 
 - Any coordinate snaps deterministically to its nearest SILO grid
@@ -26,6 +26,12 @@ Part of the [Borevitz Lab](https://biology.anu.edu.au/research/research-groups/b
   re-requested next time.
 - Writes are transactional (SQLite/WAL): a crash mid-fetch leaves the
   span unrecorded, and the next run re-fetches it.
+- **Provenance is kept.** DataDrill returns a `{variable}_source` code
+  beside every value (observed at a station, interpolated, deaccumulated,
+  ...). The store keeps it as `observations.source`, so a consumer can
+  tell a measurement from a gridded estimate; ask for it with
+  `get_df(..., sources=True)`. Stores created before 0.2.0 are migrated
+  in place — their existing rows carry a NULL source until refetched.
 
 ## Usage
 
@@ -42,6 +48,9 @@ df = store.get_df(-33.516, 148.373, date(2023, 1, 1), date(2023, 12, 31))
 #    vp, et_short_crop, ... (18 variables)
 
 store.fill(-33.516, 148.373, date(2023, 1, 1), date(2023, 12, 31))  # → 0: already local
+
+df = store.get_df(-33.516, 148.373, date(2023, 1, 1), date(2023, 12, 31), sources=True)
+#    ... plus daily_rain_source, max_temp_source, ... (nullable Int64 SILO codes)
 ```
 
 Pipelines that speak the shared `troi.troi.Troi` use the

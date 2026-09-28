@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pysilo-store"
-version = "0.1.0"
+version = "0.2.0"
 description = "Cached SILO daily climate for Australia — fetch once per grid point, never twice"
 readme = "README.md"
 authors = [

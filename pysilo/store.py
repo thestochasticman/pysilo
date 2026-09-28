@@ -5,8 +5,15 @@ SQLite database, keyed by SILO grid point (:mod:`pysilo.grid`) and date:
 
     {config.tmp_dir}/silo_store/
     └── silo.db
-        ├── observations(point, date, variable, value)
+        ├── observations(point, date, variable, value, source)
         └── coverage(point, start, end)   # which date spans are populated
+
+``source`` is SILO's per-value provenance code (the ``*_source`` column
+DataDrill returns beside every variable: observed, interpolated,
+deaccumulated, ...). It is kept, not dropped, so a consumer can tell a
+station observation from a gridded estimate; ``get_df(...,
+sources=True)`` returns it as ``{variable}_source`` columns. Rows
+fetched by versions before 0.2.0 carry a NULL source.
 
 ``Store.get_df(lat, lon, start, end)`` snaps the coordinate to its
 ~5 km grid point, diffs the requested date range against the coverage
@@ -36,6 +43,7 @@ CREATE TABLE IF NOT EXISTS observations (
     date     TEXT NOT NULL,
     variable TEXT NOT NULL,
     value    REAL,
+    source   INTEGER,
     PRIMARY KEY (point, date, variable)
 ) WITHOUT ROWID;
 
@@ -48,6 +56,19 @@ CREATE INDEX IF NOT EXISTS coverage_by_point ON coverage(point);
 """
 
 _DAY = timedelta(days=1)
+
+
+def _migrate(db: sqlite3.Connection) -> None:
+    """Bring a pre-0.2.0 store up to the current schema in place.
+
+    0.2.0 added ``observations.source``. Existing rows keep a NULL source
+    (their provenance was discarded at fetch time and cannot be
+    recovered without a refetch); new fetches fill it.
+    """
+    cols = {r[1] for r in db.execute('PRAGMA table_info(observations)').fetchall()}
+    if 'source' not in cols:
+        with db:
+            db.execute('ALTER TABLE observations ADD COLUMN source INTEGER')
 
 
 def missing_spans(covered: list[tuple[date, date]], start: date, end: date) -> list[tuple[date, date]]:
@@ -71,6 +92,25 @@ def missing_spans(covered: list[tuple[date, date]], start: date, end: date) -> l
     if cur <= end:
         gaps.append((cur, end))
     return gaps
+
+
+def _melt_with_sources(df: pd.DataFrame) -> pd.DataFrame:
+    """Long frame ``(date, variable, value, source)`` from a wide DataDrill
+    CSV whose ``{variable}_source`` columns sit beside each variable.
+
+    Pure reshaping, no I/O. A variable without a source column (SILO
+    omits none, but be safe) gets a NULL source.
+    """
+    src_cols = [c for c in df.columns if c.endswith('_source')]
+    values = df.drop(columns=src_cols).melt(id_vars=['date'], var_name='variable',
+                                            value_name='value')
+    if not src_cols:
+        values['source'] = pd.array([None] * len(values), dtype='Int64')
+        return values
+    sources = df[['date'] + src_cols].melt(id_vars=['date'], var_name='variable',
+                                           value_name='source')
+    sources['variable'] = sources['variable'].str.removesuffix('_source')
+    return values.merge(sources, on=['date', 'variable'], how='left')
 
 
 @frozen
@@ -104,6 +144,7 @@ class Store:
         db = sqlite3.connect(s.paths.db)
         db.execute('PRAGMA journal_mode=WAL')
         db.executescript(_SCHEMA)
+        _migrate(db)
         return db
 
     # -- fill -------------------------------------------------------------
@@ -163,10 +204,9 @@ class Store:
         except Exception:
             raise RuntimeError(f'SILO returned no data for {pid}: {text[:200]}')
 
-        drop = [c for c in df.columns if c.endswith('_source')]
-        df = df.drop(columns=drop + ['metadata', 'latitude', 'longitude'], errors='ignore')
+        df = df.drop(columns=['metadata', 'latitude', 'longitude'], errors='ignore')
         df = df.rename(columns={'YYYY-MM-DD': 'date'})
-        long = df.melt(id_vars=['date'], var_name='variable', value_name='value')
+        long = _melt_with_sources(df)
 
         # Record only what actually came back — if SILO's record lags the
         # requested end (recent dates), the tail stays uncovered and is
@@ -174,10 +214,11 @@ class Store:
         got_end = min(end, date.fromisoformat(str(df['date'].max())))
         with db:
             db.executemany(
-                'INSERT OR REPLACE INTO observations (point, date, variable, value) '
-                'VALUES (?, ?, ?, ?)',
+                'INSERT OR REPLACE INTO observations (point, date, variable, value, source) '
+                'VALUES (?, ?, ?, ?, ?)',
                 [(pid, str(r.date), r.variable,
-                  None if pd.isna(r.value) else float(r.value))
+                  None if pd.isna(r.value) else float(r.value),
+                  None if pd.isna(r.source) else int(r.source))
                  for r in long.itertuples()],
             )
             s._record_coverage(db, pid, start, got_end)
@@ -206,12 +247,17 @@ class Store:
     # -- read -------------------------------------------------------------
 
     def get_df(s, lat: float, lon: float, start: date, end: date,
-               email: str = None) -> pd.DataFrame:
+               email: str = None, sources: bool = False) -> pd.DataFrame:
         """Return the daily climate table for ``(lat, lon)`` x ``[start, end]``,
         fetching only what's missing first.
 
         Troi-agnostic — the data layer of the package. Pipelines that
         speak :class:`troi.Troi` use :meth:`get_df_troi`.
+
+        Args:
+            sources: If True, add a ``{variable}_source`` column beside each
+                variable holding SILO's provenance code for that value
+                (nullable integer; NULL for rows stored before 0.2.0).
 
         Returns:
             pandas.DataFrame: One row per day, a ``date`` column
@@ -222,13 +268,18 @@ class Store:
         db = s._db()
         try:
             long = pd.read_sql_query(
-                'SELECT date, variable, value FROM observations '
+                'SELECT date, variable, value, source FROM observations '
                 'WHERE point = ? AND date >= ? AND date <= ? ORDER BY date',
                 db, params=(pid, str(start), str(end)),
             )
         finally:
             db.close()
-        df = long.pivot(index='date', columns='variable', values='value').reset_index()
+        df = long.pivot(index='date', columns='variable', values='value')
+        if sources:
+            src = long.pivot(index='date', columns='variable', values='source')
+            src = src.astype('Int64').rename(columns=lambda v: f'{v}_source')
+            df = pd.concat([df, src], axis=1)
+        df = df.reset_index()
         df.columns.name = None
         df['date'] = pd.to_datetime(df['date'])
         return df
@@ -239,9 +290,10 @@ class Store:
         """:meth:`fill` at the centre of a :class:`troi.Troi`."""
         return s.fill(troi.centre_lat, troi.centre_lon, troi.start, troi.end, email=email)
 
-    def get_df_troi(s, troi, email: str = None) -> pd.DataFrame:
+    def get_df_troi(s, troi, email: str = None, sources: bool = False) -> pd.DataFrame:
         """:meth:`get_df` at the centre of a :class:`troi.Troi`."""
-        return s.get_df(troi.centre_lat, troi.centre_lon, troi.start, troi.end, email=email)
+        return s.get_df(troi.centre_lat, troi.centre_lon, troi.start, troi.end,
+                        email=email, sources=sources)
 
 
 # -- offline tests (synthetic rows, no network) -----------------------------
@@ -252,15 +304,16 @@ def _tmp_store() -> Store:
     return Store(config=Config(out_dir=tmpdir, tmp_dir=tmpdir))
 
 
-def _prime(store: Store, pid: str, start: date, end: date, value: float = 1.0):
+def _prime(store: Store, pid: str, start: date, end: date, value: float = 1.0,
+           source: int = 25):
     """Insert synthetic observations + coverage directly, bypassing the network."""
     db = store._db()
     days = pd.date_range(start, end, freq='D')
     with db:
         db.executemany(
-            'INSERT OR REPLACE INTO observations (point, date, variable, value) '
-            'VALUES (?, ?, ?, ?)',
-            [(pid, str(d.date()), v, value)
+            'INSERT OR REPLACE INTO observations (point, date, variable, value, source) '
+            'VALUES (?, ?, ?, ?, ?)',
+            [(pid, str(d.date()), v, value, source)
              for d in days for v in ('daily_rain', 'max_temp')],
         )
         store._record_coverage(db, pid, start, end)
@@ -314,6 +367,53 @@ def test_read_pivots_wide():
     )
 
 
+def test_sources_roundtrip():
+    """sources=True adds one nullable-int provenance column per variable;
+    the default frame is unchanged."""
+    store = _tmp_store()
+    lat, lon = -33.516, 148.373
+    _prime(store, grid.point_id(lat, lon), date(2024, 1, 1), date(2024, 1, 10), source=25)
+    plain = store.get_df(lat, lon, date(2024, 1, 1), date(2024, 1, 10))
+    with_src = store.get_df(lat, lon, date(2024, 1, 1), date(2024, 1, 10), sources=True)
+    return (
+        not any(c.endswith('_source') for c in plain.columns)
+        and int(with_src['daily_rain_source'].iloc[0]) == 25
+        and str(with_src['daily_rain_source'].dtype) == 'Int64'
+        and set(with_src.columns) >= {'date', 'daily_rain', 'daily_rain_source',
+                                      'max_temp', 'max_temp_source'}
+    )
+
+
+def test_melt_keeps_sources_beside_values():
+    wide = pd.DataFrame({'date': ['2024-01-01', '2024-01-02'],
+                         'daily_rain': [0.0, 5.5], 'daily_rain_source': [25, 0],
+                         'max_temp': [30.1, 28.4], 'max_temp_source': [25, 25]})
+    long = _melt_with_sources(wide)
+    row = long[(long.date == '2024-01-02') & (long.variable == 'daily_rain')].iloc[0]
+    return len(long) == 4 and float(row.value) == 5.5 and int(row.source) == 0
+
+
+def test_migration_adds_source_column():
+    """A store created by 0.1.x (no source column) opens, gains the column,
+    and reads its old rows with a NULL source."""
+    import tempfile
+    tmpdir = tempfile.mkdtemp(prefix='silo_store_migrate_test_')
+    store = Store(config=Config(out_dir=tmpdir, tmp_dir=tmpdir))
+    old = sqlite3.connect(store.paths.db)
+    old.executescript("""
+        CREATE TABLE observations (point TEXT NOT NULL, date TEXT NOT NULL,
+            variable TEXT NOT NULL, value REAL, PRIMARY KEY (point, date, variable)) WITHOUT ROWID;
+        CREATE TABLE coverage (point TEXT NOT NULL, start TEXT NOT NULL, end TEXT NOT NULL);
+    """)
+    pid = grid.point_id(-33.516, 148.373)
+    with old:
+        old.execute('INSERT INTO observations VALUES (?, ?, ?, ?)', (pid, '2024-01-01', 'daily_rain', 2.0))
+        old.execute('INSERT INTO coverage VALUES (?, ?, ?)', (pid, '2024-01-01', '2024-01-01'))
+    old.close()
+    df = store.get_df(-33.516, 148.373, date(2024, 1, 1), date(2024, 1, 1), sources=True)
+    return float(df['daily_rain'].iloc[0]) == 2.0 and pd.isna(df['daily_rain_source'].iloc[0])
+
+
 def test_nearby_coordinate_shares_point():
     """A coordinate ~1 km away inside the same cell needs no fetch."""
     store = _tmp_store()
@@ -327,6 +427,9 @@ def test():
         test_coverage_coalesces(),
         test_fill_skips_covered_range(),
         test_read_pivots_wide(),
+        test_sources_roundtrip(),
+        test_melt_keeps_sources_beside_values(),
+        test_migration_adds_source_column(),
         test_nearby_coordinate_shares_point(),
     ])
 

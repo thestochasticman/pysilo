@@ -9,7 +9,8 @@ from troi import Troi
 from pysilo.silo import SILO, defaultsilo
 
 
-def download_silo(troi: Troi, email: str = None, silo: SILO = defaultsilo) -> pd.DataFrame:
+def download_silo(troi: Troi, email: str = None, silo: SILO = defaultsilo,
+                  sources: bool = False) -> pd.DataFrame:
     """Return SILO daily climate for the centre of ``troi.bbox``.
 
     Fetches only the date spans of the grid point that no previous
@@ -20,6 +21,8 @@ def download_silo(troi: Troi, email: str = None, silo: SILO = defaultsilo) -> pd
         troi: The :class:`troi.Troi` (centre + date range).
         email: SILO registration email; falls back to ``config.email``.
         silo: Endpoint/variable configuration; defaults to the bundled one.
+        sources: If True, include SILO's ``{variable}_source`` provenance
+            columns (see :meth:`pysilo.store.Store.get_df`).
 
     Returns:
         pandas.DataFrame: One row per day with a ``YYYY-MM-DD`` column and
@@ -27,7 +30,7 @@ def download_silo(troi: Troi, email: str = None, silo: SILO = defaultsilo) -> pd
     """
     from pysilo.store import Store
     store = Store(config=troi.config, silo=silo)
-    df = store.get_df_troi(troi, email=email)
+    df = store.get_df_troi(troi, email=email, sources=sources)
     return df.rename(columns={'date': 'YYYY-MM-DD'})
 
 
@@ -58,7 +61,11 @@ def test_live_fetch_and_dedup():
         return False
     # extend six months -> only the extension is fetched
     extended = store.fill(lat, lon, date(2023, 1, 1), date(2024, 6, 30))
-    return 0 < extended <= 182
+    if not 0 < extended <= 182:
+        return False
+    # provenance came back with the data: every variable has a source code
+    src = store.get_df(lat, lon, date(2023, 1, 1), date(2023, 1, 31), sources=True)
+    return src['daily_rain_source'].notna().all() and src['max_temp_source'].notna().all()
 
 
 def test():
