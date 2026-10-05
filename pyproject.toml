@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pysilo-store"
-version = "0.2.0"
+version = "0.3.0+gadi"
 description = "Cached SILO daily climate for Australia — fetch once per grid point, never twice"
 readme = "README.md"
 authors = [
@@ -31,13 +31,14 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering :: Atmospheric Science",
 ]
-# pandas is provided by conda via environment.yml; only the lab core is
-# declared here so `pip install -e .` is fast.
 dependencies = [
-  "troi-core @ git+https://github.com/thestochasticman/troi.git",
+  "troi-core @ git+https://github.com/thestochasticman/troi.git@gadi",
   "attrs",
   "typing_extensions",
+  "numpy",
   "pandas",
+  "xarray",
+  "zarr>=3",
 ]
 
 [project.urls]

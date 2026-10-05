@@ -18,4 +18,7 @@ dependencies:
   - tabulate
   - typing_extensions
   # pysilo
+  - numpy
   - pandas
+  - xarray
+  - zarr>=3
