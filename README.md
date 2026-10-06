@@ -49,6 +49,75 @@ Part of the [Borevitz Lab](https://biology.anu.edu.au/research/research-groups/b
   attrs `crs`, `transform` (six affine numbers of the returned window),
   `nodata` and `native_res_m`, so a consumer can regrid reproducibly.
 
+### The pieces
+
+```mermaid
+flowchart LR
+    subgraph root ["silo_store/"]
+        direction TB
+        Z[("silo.zarr/&lt;variable&gt; and &lt;variable&gt;_source<br/>(time, y, x) on the national 0.05° lattice<br/>841 × 681 points · time from 1889-01-01<br/>chunks of 366 days × 8 × 8 points")]
+        M["ledger/&lt;by&gt;_&lt;bx&gt;/&lt;year&gt;.json<br/>through: {point slot: last date fetched}"]
+        C["claims/silo-&lt;by&gt;-&lt;bx&gt;/<br/>one per 8 × 8 block being written"]
+    end
+    FILL(["fill"]) -->|"① claim the block"| C
+    FILL -->|"② fetch spans · read chunks · write"| Z
+    FILL -->|"③ record through per point"| M
+    FILL -->|"④ release"| C
+    GET(["get_ds / get_df"]) --> FILL
+    GET -->|"cube, or one point squeezed"| Z
+    GAPS(["gaps"]) --> M
+    GAPS --> C
+```
+
+The unit of the ledger is one **point-year**, recorded inside its
+block's marker as the last date SILO actually returned for that point.
+The unit of fetching is one DataDrill request per (point, missing date
+span), all 18 variables at once. A block is 8 × 8 points, one Zarr
+chunk per 366-day time chunk, and it is read, updated and written back
+under its claim. Shared primitives and the general protocol are in
+[troi/docs/ledger.md](https://github.com/thestochasticman/troi/blob/gadi/docs/ledger.md).
+
+### A fill, step by step
+
+```mermaid
+flowchart TD
+    R(["fill(bbox, start, end)"]) --> CL["clamp end to today · start no earlier than 1889"]
+    CL --> EN["points whose cells intersect the bbox,<br/>grouped into 8 × 8 blocks"]
+    EN --> D1{"every point's through<br/>reaches the request?"}
+    D1 -- yes --> NEXT["next block · no claim, no email, no network"]
+    D1 -- no --> C["Claim ('silo', by, bx) · lease 900 s · keepalive thread"]
+    C --> D2{"re-diff under the claim"}
+    D2 -- "nothing missing" --> REL
+    D2 -- "spans missing" --> F["4 threads: one DataDrill CSV<br/>per (point, span), all variables"]
+    F --> T{"per request"}
+    T -- "error" --> HOLD["hold the error"]
+    T -- "rows" --> GOT["collect"]
+    HOLD --> W
+    GOT --> W["per variable and 366-day chunk:<br/>read the block · set values and source codes ·<br/>write it back · then through per point per year"]
+    W --> REL["release"]
+    REL --> RAISE{"held errors?"}
+    RAISE -- yes --> X["raise, after the good spans were written"]
+    RAISE -- no --> NEXT
+```
+
+A point-year is complete when its `through` reaches the earlier of 31
+December and the clamped request end. If SILO's record lags behind a
+recent request, the tail stays uncovered and is asked again next time;
+there is no 404 in DataDrill, so there is no `absent/` tree.
+
+### What `gaps()` can say
+
+`gaps(bbox, start, end)` enumerates every (point, year) of the request
+and classifies each one whose `through` falls short. It touches no
+network.
+
+| status | for a (point, year) |
+|---|---|
+| `before_product_start` | the year is before 1889 |
+| `after_today` | the year starts after today |
+| `claimed_in_progress` | another job holds that block's claim right now |
+| `never_fetched` | `through` is missing or short (the recorded date is in `detail`); this should be 0 after a fill |
+
 ## Usage
 
 The core API is **troi-agnostic** — a bbox (or a coordinate) and dates:
